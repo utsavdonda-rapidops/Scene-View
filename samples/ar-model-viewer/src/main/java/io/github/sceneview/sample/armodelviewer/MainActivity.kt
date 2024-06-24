@@ -1,9 +1,12 @@
 package io.github.sceneview.sample.armodelviewer
 
 import android.os.Bundle
+import android.util.Log
 import android.view.View
 import android.view.ViewGroup
+import android.widget.Button
 import android.widget.TextView
+import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import androidx.appcompat.widget.Toolbar
 import androidx.core.view.isGone
@@ -11,6 +14,8 @@ import androidx.lifecycle.lifecycleScope
 import com.google.ar.core.Anchor
 import com.google.ar.core.Config
 import com.google.ar.core.Plane
+import com.google.ar.core.Pose
+import com.google.ar.core.Session
 import com.google.ar.core.TrackingFailureReason
 import io.github.sceneview.ar.ARSceneView
 import io.github.sceneview.ar.arcore.getUpdatedPlanes
@@ -27,6 +32,11 @@ class MainActivity : AppCompatActivity(R.layout.activity_main) {
     lateinit var sceneView: ARSceneView
     lateinit var loadingView: View
     lateinit var instructionText: TextView
+
+    var x = 0.0f
+    var y = 0.0f
+    var z = 0.0f
+    var w = 0.0f
 
     var isLoading = false
         set(value) {
@@ -64,6 +74,56 @@ class MainActivity : AppCompatActivity(R.layout.activity_main) {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+
+        val buttonGreen: Button = findViewById(R.id.b1)
+        val buttonRed: Button = findViewById(R.id.b2)
+        val buttonDefault: Button = findViewById(R.id.b3)
+        val buttonReset: Button = findViewById(R.id.b4)
+
+        buttonGreen.setOnClickListener {
+            x = 0.0f
+            y = 1.0f
+            z = 0.0f
+            w = 1.0f
+            // Reload model with new color
+            anchorNode?.let {
+                reloadModel(it)
+            }
+            Toast.makeText(this, "Change Color Green", Toast.LENGTH_SHORT).show()
+        }
+
+        buttonRed.setOnClickListener {
+            // Update color values
+            x = 1.0f
+            y = 0.0f
+            z = 0.0f
+            w = 1.0f
+            Toast.makeText(this, "Change Color Red", Toast.LENGTH_SHORT).show()
+
+            // Reload model with new color
+            anchorNode?.let {
+                reloadModel(it)
+            }
+        }
+
+        buttonDefault.setOnClickListener {
+            // Reset color values
+            x = 0.0f
+            y = 0.0f
+            z = 0.0f
+            w = 0.0f
+            Toast.makeText(this, "Reset Color", Toast.LENGTH_SHORT).show()
+
+            // Reload model with default color
+            anchorNode?.let {
+                reloadModel(it)
+            }
+        }
+
+        buttonReset.setOnClickListener {
+            resetAR()
+            Toast.makeText(this, "Reset and start new plane detection", Toast.LENGTH_SHORT).show()
+        }
 
         setFullScreen(
             findViewById(R.id.rootView),
@@ -104,29 +164,42 @@ class MainActivity : AppCompatActivity(R.layout.activity_main) {
                 this@MainActivity.trackingFailureReason = reason
             }
         }
-//        sceneView.viewNodeWindowManager = ViewAttachmentManager(context, this).apply { onResume() }
     }
 
     fun addAnchorNode(anchor: Anchor) {
         sceneView.addChildNode(
-            AnchorNode(sceneView.engine, anchor)
-                .apply {
-                    isEditable = true
-                    lifecycleScope.launch {
-                        isLoading = true
-                        buildModelNode()?.let { addChildNode(it) }
-//                        buildViewNode()?.let { addChildNode(it) }
-                        isLoading = false
+            AnchorNode(sceneView.engine, anchor).apply {
+                isEditable = true
+                lifecycleScope.launch {
+                    isLoading = true
+                    buildModelNode()?.let {
+                        addChildNode(it)
                     }
-                    anchorNode = this
+                    isLoading = false
                 }
+                anchorNode = this
+            }
         )
     }
 
     suspend fun buildModelNode(): ModelNode? {
-        sceneView.modelLoader.loadModelInstance(
-            "https://sceneview.github.io/assets/models/DamagedHelmet.glb"
+        return sceneView.modelLoader.loadModelInstance(
+            "https://firebasestorage.googleapis.com/v0/b/flutterpractice-be455.appspot.com/o/satyam%2Fsample_curtain.glb?alt=media&token=ae90d584-87c1-4bd8-bd4b-be24f552c362"
         )?.let { modelInstance ->
+
+            modelInstance.materialInstances.forEachIndexed { index, materialInstance ->
+                Log.d("YourTag", "Index: $index")
+                when {
+                    x == 0.0f && y == 0.0f && z == 0.0f && w == 0.0f -> {
+                    }
+
+                    else -> {
+                        materialInstance.setParameter("baseColorFactor", x, y, z, w)
+                    }
+
+                }
+            }
+
             return ModelNode(
                 modelInstance = modelInstance,
                 // Scale to fit in a 0.5 meters cube
@@ -140,18 +213,62 @@ class MainActivity : AppCompatActivity(R.layout.activity_main) {
         return null
     }
 
-//    suspend fun buildViewNode(): ViewNode? {
-//        return withContext(Dispatchers.Main) {
-//            val engine = sceneView.engine
-//            val materialLoader = sceneView.materialLoader
-//            val windowManager = sceneView.viewNodeWindowManager ?: return@withContext null
-//            val view = LayoutInflater.from(materialLoader.context).inflate(R.layout.view_node_label, null, false)
-//            val ViewAttachmentManager(context, this).apply { onResume() }
-//            val viewNode = ViewNode(engine, windowManager, materialLoader, view, true, true)
-//            viewNode.position = Position(0f, -0.2f, 0f)
-//            anchorNodeView = view
-//            viewNode
+    fun reloadModel(node: AnchorNode) {
+        lifecycleScope.launch {
+            isLoading = true
+            val newModelNode = buildModelNode()
+            if (newModelNode != null) {
+                node.clearChildNodes() // Remove existing child nodes
+                node.addChildNode(newModelNode)
+            }
+            isLoading = false
+        }
+    }
+
+    fun AnchorNode.clearChildNodes() {
+        val nodes = ArrayList(childNodes)
+        nodes.forEach {
+            removeChildNode(it)
+        }
+    }
+
+    private fun resetAR() {
+
+        val arSession: Session? = sceneView.session
+        val currentFrame = arSession?.update()
+        val cameraPose = currentFrame?.camera?.pose
+// Calculate a new position based on the camera position and orientation
+        val newPosition = cameraPose?.compose(Pose.makeTranslation(0f, 0f, 0f))
+// Update the anchor node position based on the new calculated position
+        newPosition?.let {
+            val newAnchor = sceneView.session?.createAnchor(it)
+            newAnchor?.let { anchor ->
+// Remove the previous anchor node
+                anchorNode?.let { previousAnchorNode ->
+                    sceneView.removeChildNode(previousAnchorNode)
+                }
+// Add the new anchor node
+                addAnchorNode(anchor)
+            }
+        }
+        Toast.makeText(this, "Reset", Toast.LENGTH_SHORT).show()
+// Reload model with default color
+        anchorNode?.let {
+            reloadModel(it)
+        }
+
+
+        // Remove existing anchor node and its children
+//        anchorNode?.clearChildNodes()
+//        anchorNode?.let { node ->
+//            sceneView.removeChildNode(node)
+//            anchorNode = null
 //        }
-//    }
+//
+//        // Reset the AR session configuration
+//
+//        // Clear the tracking failure reason
+//        trackingFailureReason = null
+    }
 
 }
