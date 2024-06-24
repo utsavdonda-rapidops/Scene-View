@@ -11,6 +11,7 @@ import androidx.appcompat.app.AppCompatActivity
 import androidx.appcompat.widget.Toolbar
 import androidx.core.view.isGone
 import androidx.lifecycle.lifecycleScope
+import com.google.android.filament.MaterialInstance
 import com.google.ar.core.Anchor
 import com.google.ar.core.Config
 import com.google.ar.core.Plane
@@ -37,6 +38,8 @@ class MainActivity : AppCompatActivity(R.layout.activity_main) {
     var y = 0.0f
     var z = 0.0f
     var w = 0.0f
+    var defaultMaterialInstances: List<MaterialInstance>? = null
+
 
     var isLoading = false
         set(value) {
@@ -184,17 +187,22 @@ class MainActivity : AppCompatActivity(R.layout.activity_main) {
 
     suspend fun buildModelNode(): ModelNode? {
         return sceneView.modelLoader.loadModelInstance(
-            "https://firebasestorage.googleapis.com/v0/b/flutterpractice-be455.appspot.com/o/satyam%2Fsample_curtain.glb?alt=media&token=ae90d584-87c1-4bd8-bd4b-be24f552c362"
+            "https://sceneview.github.io/assets/models/DamagedHelmet.glb"
         )?.let { modelInstance ->
-
             modelInstance.materialInstances.forEachIndexed { index, materialInstance ->
                 Log.d("YourTag", "Index: $index")
                 when {
                     x == 0.0f && y == 0.0f && z == 0.0f && w == 0.0f -> {
+                        defaultMaterialInstances = listOf(materialInstance)
+                        x=1.0f
+                        Log.d("YourTag", "Color: ${defaultMaterialInstances}")
                     }
 
                     else -> {
+                        defaultMaterialInstances = listOf(materialInstance)
                         materialInstance.setParameter("baseColorFactor", x, y, z, w)
+                        Log.d("YourTag", "Color: ${defaultMaterialInstances}")
+
                     }
 
                 }
@@ -238,7 +246,7 @@ class MainActivity : AppCompatActivity(R.layout.activity_main) {
         val currentFrame = arSession?.update()
         val cameraPose = currentFrame?.camera?.pose
 // Calculate a new position based on the camera position and orientation
-        val newPosition = cameraPose?.compose(Pose.makeTranslation(0f, 0f, 0f))
+        val newPosition = cameraPose?.compose(Pose.makeTranslation(0f, 0f, -1f))
 // Update the anchor node position based on the new calculated position
         newPosition?.let {
             val newAnchor = sceneView.session?.createAnchor(it)
