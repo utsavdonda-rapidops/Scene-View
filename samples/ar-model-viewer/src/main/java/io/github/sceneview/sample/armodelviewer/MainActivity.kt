@@ -39,18 +39,16 @@ class MainActivity : AppCompatActivity(R.layout.activity_main) {
     lateinit var colorSpinner: Spinner
     lateinit var buttonBlue: Button
     lateinit var buttonRed: Button
+
     var currentIndex: Int = -1
     private lateinit var adapter: ArrayAdapter<String>
-    var glbMaterial = mutableListOf<String>("Select Material")
+
+    val colorMap: MutableList<MaterialInstance> = mutableListOf()
+
+    var glbMaterial = mutableListOf<String>()
     var isReset = true
-    var a = 0.0f
-    var b = 0.0f
-    var c = 0.0f
-    var d = 0.0f
-    var x = 0.0f
-    var y = 0.0f
-    var z = 0.0f
-    var w = 0.0f
+
+    var isModify = false
     var defaultMaterialInstances: List<MaterialInstance>? = null
     var isLoading = false
         set(value) {
@@ -74,7 +72,7 @@ class MainActivity : AppCompatActivity(R.layout.activity_main) {
         }
 
     fun updateInstructions() {
-        Log.d("abcd test", "updateInstructions: #############################")
+        Log.d("LogDB", "updateInstructions: #############################")
         instructionText.text = trackingFailureReason?.let {
             it.getDescription(this)
         } ?: if (anchorNode == null) {
@@ -83,18 +81,20 @@ class MainActivity : AppCompatActivity(R.layout.activity_main) {
             null
         }
         Log.d(
-            "abcd test",
+            "LogDB",
             "updateInstructions: instructionText updated to '${instructionText.text}'"
         )
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        Log.d("abcd test", "onCreate: called with savedInstanceState=$savedInstanceState")
+        println("onCreate called")
+        Log.d("LogDB", "onCreate called")
         resetButton = findViewById(R.id.button4)
         colorSpinner = findViewById(R.id.colorSpinner)
         buttonBlue = findViewById(R.id.b1)
         buttonRed = findViewById(R.id.r1)
+
         adapter = ArrayAdapter(this, android.R.layout.simple_spinner_item, glbMaterial)
         adapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item)
         colorSpinner.adapter = adapter
@@ -108,55 +108,47 @@ class MainActivity : AppCompatActivity(R.layout.activity_main) {
                 val selectedMaterial = parent.getItemAtPosition(position).toString()
                 currentIndex = position
                 Log.d("select Value", " ${selectedMaterial} ${position}")
-// if (selectedMaterial != "Select Material") {
-// val materialIndex = selectIndex.indexOf(selectedMaterial) - 1
-// if (materialIndex >= 0 && defaultMaterialInstances != null) {
-// val materialInstance = defaultMaterialInstances!![materialIndex]
-// materialInstance.setParameter("baseColorFactor", x, y, z, w)
-// reloadModel(anchorNode!!)
-// }
-// }
             }
 
             override fun onNothingSelected(parent: AdapterView<*>) {}
         }
+
         buttonBlue.setOnClickListener {
-            a = x
-            b = y
-            c = z
-            d = w
-// Update color values
-            x = 0.0f
-            y = 1.0f
-            z = 0.0f
-            w = 1.0f
-            isReset = false
-            Toast.makeText(this, "Change Color Red", Toast.LENGTH_SHORT).show()
-// Reload model with new color
-            anchorNode?.let {
-                reloadModel(it)
+            Log.d("LogDB", "buttonBlue.setOnClickListener")
+            if (currentIndex in colorMap.indices) {
+                colorMap[currentIndex] = colorMap[currentIndex].apply {
+                    setParameter("baseColorFactor", 0.0f, 1.0f, 0.0f, 1.0f)
+                }
+                isReset = false
+                isModify = true
+//                anchorNode?.let {
+//                    reloadModel(it)
+//                }
+            } else {
+                Log.e("LogDB", "Invalid currentIndex: $currentIndex")
             }
         }
+
         buttonRed.setOnClickListener {
-            a = x
-            b = y
-            c = z
-            d = w
-// Update color values
-            x = 1.0f
-            y = 0.0f
-            z = 0.0f
-            w = 1.0f
-            isReset = false
-            Toast.makeText(this, "Change Color Red", Toast.LENGTH_SHORT).show()
-// Reload model with new color
-            anchorNode?.let {
-                reloadModel(it)
+            Log.d("LogDB", "buttonRed.setOnClickListener")
+            if (currentIndex in colorMap.indices) {
+                colorMap[currentIndex] = colorMap[currentIndex].apply {
+                    setParameter("baseColorFactor", 1.0f, 0.0f, 0.0f, 1.0f)
+                }
+                isReset = false
+                isModify = true
+//                anchorNode?.let {
+//                    reloadModel(it)
+//                }
+            } else {
+                Log.e("LogDB", "Invalid currentIndex: $currentIndex")
             }
         }
+
         resetButton.setOnClickListener {
+            Log.d("LogDB", "resetButton.setOnClickListener")
             glbMaterial.clear()
-// anchorNode?.position = Position(x = 0.0f, y = 0.0f, z = 0.0f)
+            isModify = false
             resetButton.visibility = View.INVISIBLE
             buttonBlue.visibility = View.INVISIBLE
             buttonRed.visibility = View.INVISIBLE
@@ -180,6 +172,7 @@ class MainActivity : AppCompatActivity(R.layout.activity_main) {
                 reloadModel(it)
             }
         }
+
         setFullScreen(
             findViewById(R.id.rootView),
             fullScreen = true,
@@ -198,7 +191,6 @@ class MainActivity : AppCompatActivity(R.layout.activity_main) {
             lifecycle = this@MainActivity.lifecycle
             planeRenderer.isEnabled = true
             configureSession { session, config ->
-                Log.d("abcd test", "configureSession: configuring AR session")
                 config.depthMode = when (session.isDepthModeSupported(Config.DepthMode.AUTOMATIC)) {
                     true -> Config.DepthMode.AUTOMATIC
                     else -> Config.DepthMode.DISABLED
@@ -220,25 +212,18 @@ class MainActivity : AppCompatActivity(R.layout.activity_main) {
                 }
             }
             onTrackingFailureChanged = { reason ->
-                Log.d(
-                    "abcd test",
-                    "onTrackingFailureChanged: tracking failure reason changed to $reason"
-                )
                 this@MainActivity.trackingFailureReason = reason
             }
         }
     }
 
     fun addAnchorNode(anchor: Anchor) {
-        Log.d("abcd test", "addAnchorNode: adding anchor node with anchor=$anchor")
         sceneView.addChildNode(
             AnchorNode(sceneView.engine, anchor).apply {
                 isEditable = true
                 lifecycleScope.launch {
                     isLoading = true
-                    Log.d("abcd test", "addAnchorNode: started loading model")
                     buildModelNode()?.let {
-                        Log.d("abcd test", "addAnchorNode: model node built successfully")
                         addChildNode(it)
                     }
                     resetButton.visibility = View.VISIBLE
@@ -246,7 +231,6 @@ class MainActivity : AppCompatActivity(R.layout.activity_main) {
                     buttonRed.visibility = View.VISIBLE
                     colorSpinner.visibility = View.VISIBLE
                     isLoading = false
-                    Log.d("abcd test", "addAnchorNode: finished loading model")
                 }
                 anchorNode = this
             }
@@ -254,73 +238,58 @@ class MainActivity : AppCompatActivity(R.layout.activity_main) {
     }
 
     suspend fun buildModelNode(): ModelNode? {
-        Log.d("abcd test", "buildModelNode: loading model instance")
-        glbMaterial.clear()
+        Log.d("LogDB", "buildModelNode")
+//        glbMaterial.clear()
         return sceneView.modelLoader.loadModelInstance(
             "https://firebasestorage.googleapis.com/v0/b/flutterpractice-be455.appspot.com/o/satyam%2Fsample_curtain.glb?alt=media&token=ae90d584-87c1-4bd8-bd4b-be24f552c362"
         )?.let { modelInstance ->
-            modelInstance.materialInstances.forEachIndexed { index, materialInstance ->
-// Log.d("index 1", "name: ${modelInstance.materialInstances.get(0).name} ")
-// Log.d("index 2", "name: ${modelInstance.materialInstances.get(1).name} ")
-                glbMaterial.add(modelInstance.materialInstances[index].name)
-                when {
-                    x == 0.0f && y == 0.0f && z == 0.0f && w == 0.0f || isReset -> {
-                        defaultMaterialInstances = listOf(materialInstance)
-                        Log.d("YourTag", "Color: ${defaultMaterialInstances}")
-                    }
+            Log.d("LogDB", "buildModelNode: model instance loaded successfully")
 
-                    else -> {
-                        defaultMaterialInstances = listOf(materialInstance)
-                        modelInstance.materialInstances[currentIndex].setParameter(
-                            "baseColorFactor",
-                            x,
-                            y,
-                            z,
-                            w
-                        )
-// if(currentIndex==index){
-// modelInstance.materialInstances[currentIndex].setParameter("baseColorFactor", x, y, z, w)
-// }else{
-// if(a != 0.0f || b != 0.0f || c != 0.0f || d != 0.0f){
-// modelInstance.materialInstances[index].setParameter("baseColorFactor", a, b, c, d)
-// }
-// }
-// materialInstance.setParameter("baseColorFactor", x, y, z, w)
-                        Log.d("YourTag", "Color: ${defaultMaterialInstances}")
-                    }
+            modelInstance.materialInstances.forEachIndexed { index, materialInstance ->
+                glbMaterial.add(materialInstance.name)
+                if (index < colorMap.size) {
+                    colorMap[index] = materialInstance
+                } else {
+                    colorMap.add(materialInstance)
                 }
+                Log.d("LogDB", "buildModelNode: isModify false $index")
+//                else {
+//                    Log.d("LogDB", "UNDER ELSE PART " +
+//                            "buildModelNode: isModify true $index")
+//                    if (index < colorMap.size) {
+//                        modelInstance.materialInstances[index] = colorMap[index]
+//                    } else {
+//                        Log.e("LogDB", "Invalid index in colorMap: $index")
+//                    }
+//                    Log.d("LogDB", "buildModelNode: isModify true $index")
+//                }
             }
             adapter.notifyDataSetChanged()
-            Log.d(
-                "abcd test",
-                "buildModelNode: model instance loaded successfully, modelInstance=${modelInstance.toString()}"
-            )
             return ModelNode(
                 modelInstance = modelInstance,
-// Scale to fit in a 0.5 meters cube
+                // Scale to fit in a 0.5 meters cube
                 scaleToUnits = 0.5f,
-// Bottom origin instead of center so the model base is on floor
+                // Bottom origin instead of center so the model base is on floor
                 centerOrigin = Position(y = -0.5f)
             ).apply {
                 isEditable = true
             }
         }
-        Log.d("abcd test", "buildModelNode: failed to load model instance")
         return null
     }
 
     fun reloadModel(node: AnchorNode) {
         lifecycleScope.launch {
             isLoading = true
-            Log.d("abcd test", "reloadModel: started reloading model")
+            Log.d("LogDB", "reloadModel: started reloading model")
             val newModelNode = buildModelNode()
             if (newModelNode != null) {
                 node.clearChildNodes() // Remove existing child nodes
                 node.addChildNode(newModelNode)
-                Log.d("abcd test", "reloadModel: model reloaded successfully")
+                Log.d("LogDB", "reloadModel: model reloaded successfully")
             }
             isLoading = false
-            Log.d("abcd test", "reloadModel: finished reloading model")
+            Log.d("LogDB", "reloadModel: finished reloading model")
         }
     }
 
