@@ -17,6 +17,8 @@ android {
     }
 
     buildTypes {
+        abc {
+        }
         release {
         }
     }
