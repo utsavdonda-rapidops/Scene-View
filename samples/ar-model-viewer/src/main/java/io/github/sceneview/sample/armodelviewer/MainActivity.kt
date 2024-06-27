@@ -31,6 +31,7 @@ import io.github.sceneview.ar.ARSceneView
 import io.github.sceneview.ar.arcore.getUpdatedPlanes
 import io.github.sceneview.ar.getDescription
 import io.github.sceneview.ar.node.AnchorNode
+import io.github.sceneview.material.setBaseColorMap
 import io.github.sceneview.material.setMetallicRoughnessMap
 import io.github.sceneview.math.Position
 import io.github.sceneview.node.ModelNode
@@ -167,15 +168,22 @@ class MainActivity : AppCompatActivity(R.layout.activity_main) {
             rgbDialog.dismiss()
         }
         rgbLayoutDialogBinding.pickBtn.setOnClickListener {
-            val red = rgbLayoutDialogBinding.redLayout.seekBar.progress + 0.0f
-            val green = rgbLayoutDialogBinding.greenLayout.seekBar.progress + 0.0f
-            val blue = rgbLayoutDialogBinding.blueLayout.seekBar.progress + 0.0f
+            val red = rgbLayoutDialogBinding.redLayout.seekBar.progress / 255.0f
+            val green = rgbLayoutDialogBinding.greenLayout.seekBar.progress / 255.0f
+            val blue = rgbLayoutDialogBinding.blueLayout.seekBar.progress / 255.0f
+
             if (currentIndex in colorMap.indices) {
                 val whiteTexture = createWhiteTexture()
                 colorMap[currentIndex] = colorMap[currentIndex].apply {
-//                    colorMap[currentIndex].setTexture("baseColorMap", whiteTexture)
-                    colorMap[currentIndex].setMetallicRoughnessMap(whiteTexture)
+                    // Set the base color factor to the desired color
                     setParameter("baseColorFactor", red, green, blue, 1.0f)
+                    // Set the base color map to the white texture
+                    setBaseColorMap(whiteTexture)
+                    // Set the metallic roughness map to the white texture
+                    setMetallicRoughnessMap(whiteTexture)
+                    // Set metallic and roughness factors to avoid additional color mixing
+                    setParameter("metallicFactor", 0.0f)
+                    setParameter("roughnessFactor", 0.0f)
                 }
                 isReset = false
             } else {
@@ -388,14 +396,13 @@ class MainActivity : AppCompatActivity(R.layout.activity_main) {
         buffer.put(3, 0xFF.toByte())  // Alpha
         buffer.flip()  // Ensure the buffer is ready to be read
 
-        val textureBuilder = Texture.Builder()
+        val texture = Texture.Builder()
             .width(width)
             .height(height)
             .levels(1)
             .sampler(Texture.Sampler.SAMPLER_2D)  // Use SAMPLER_2D for a 2D texture
             .format(Texture.InternalFormat.RGBA8)
-
-        val texture = textureBuilder.build(sceneView.engine)
+            .build(sceneView.engine)
 
         val pixelBufferDescriptor = Texture.PixelBufferDescriptor(
             buffer,
