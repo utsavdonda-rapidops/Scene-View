@@ -31,9 +31,7 @@ import io.github.sceneview.ar.ARSceneView
 import io.github.sceneview.ar.arcore.getUpdatedPlanes
 import io.github.sceneview.ar.getDescription
 import io.github.sceneview.ar.node.AnchorNode
-import io.github.sceneview.material.setBaseColorMap
-import io.github.sceneview.material.setClearCoatFactor
-import io.github.sceneview.material.setMetallicRoughnessIndex
+import io.github.sceneview.material.setMetallicRoughnessMap
 import io.github.sceneview.math.Position
 import io.github.sceneview.node.ModelNode
 import io.github.sceneview.sample.armodelviewer.databinding.RgbLayoutDialogBinding
@@ -41,6 +39,7 @@ import io.github.sceneview.sample.doOnApplyWindowInsets
 import io.github.sceneview.sample.setFullScreen
 import kotlinx.coroutines.launch
 import java.nio.ByteBuffer
+import java.nio.ByteOrder
 
 class MainActivity : AppCompatActivity(R.layout.activity_main) {
     lateinit var sceneView: ARSceneView
@@ -172,7 +171,10 @@ class MainActivity : AppCompatActivity(R.layout.activity_main) {
             val green = rgbLayoutDialogBinding.greenLayout.seekBar.progress + 0.0f
             val blue = rgbLayoutDialogBinding.blueLayout.seekBar.progress + 0.0f
             if (currentIndex in colorMap.indices) {
+                val whiteTexture = createWhiteTexture()
                 colorMap[currentIndex] = colorMap[currentIndex].apply {
+//                    colorMap[currentIndex].setTexture("baseColorMap", whiteTexture)
+                    colorMap[currentIndex].setMetallicRoughnessMap(whiteTexture)
                     setParameter("baseColorFactor", red, green, blue, 1.0f)
                 }
                 isReset = false
@@ -292,16 +294,15 @@ class MainActivity : AppCompatActivity(R.layout.activity_main) {
         sceneView.addChildNode(
             AnchorNode(sceneView.engine, anchor).apply {
                 isEditable = true
+                sceneView.view.blendMode.name
                 lifecycleScope.launch {
                     isLoading = true
-                    Log.d("abcd test", "addAnchorNode: started loading model")
-                    buildModelNode()?.let {modelNode ->
-                        // Create a white texture
-                        val whiteTexture = createWhiteTexture()
+                    Log.d("xyz", "...........${sceneView.view.blendMode}")
 
-                        modelNode.modelInstance.materialInstances.forEach { materialInstance ->
-                            materialInstance.setBaseColorMap(whiteTexture)
-                        }
+                    Log.d("abcd test", "addAnchorNode: started loading model")
+                    buildModelNode()?.let { modelNode ->
+                        // Create a white texture
+
                         Log.d("abcd test", "addAnchorNode: model node built successfully")
                         addChildNode(modelNode)
                     }
@@ -322,11 +323,13 @@ class MainActivity : AppCompatActivity(R.layout.activity_main) {
         return sceneView.modelLoader.loadModelInstance(
             "https://firebasestorage.googleapis.com/v0/b/flutterpractice-be455.appspot.com/o/satyam%2Fsample_curtain.glb?alt=media&token=ae90d584-87c1-4bd8-bd4b-be24f552c362"
         )?.let { modelInstance ->
+
             modelInstance.materialInstances.forEachIndexed { index, materialInstance ->
                 glbMaterial.add(materialInstance.name)
                 Log.d("error 5", "========================================================")
-                materialInstance.setMetallicRoughnessIndex(0)
-                materialInstance.setClearCoatFactor(0.0f)
+//                materialInstance.setMetallicRoughnessIndex(0)
+//                materialInstance.setClearCoatFactor(0.0f)
+
                 if (index < colorMap.size) {
                     colorMap[index] = materialInstance
                 } else {
@@ -378,23 +381,21 @@ class MainActivity : AppCompatActivity(R.layout.activity_main) {
     private fun createWhiteTexture(): Texture {
         val width = 1
         val height = 1
-        val buffer = ByteBuffer.allocateDirect(4)
-        buffer.put(0, 0x00.toByte())  // Red
-        buffer.put(1, 0x00.toByte())  // Green
-        buffer.put(2, 0x00.toByte())  // Blue
-        buffer.put(3, 0x00.toByte())  // Alpha
+        val buffer = ByteBuffer.allocateDirect(4).order(ByteOrder.nativeOrder())
+        buffer.put(0, 0xFF.toByte())  // Red
+        buffer.put(1, 0xFF.toByte())  // Green
+        buffer.put(2, 0xFF.toByte())  // Blue
+        buffer.put(3, 0xFF.toByte())  // Alpha
+        buffer.flip()  // Ensure the buffer is ready to be read
 
-        Log.d("error 1", "========================================================")
-
-        val texture = Texture.Builder()
+        val textureBuilder = Texture.Builder()
             .width(width)
             .height(height)
             .levels(1)
-            .sampler(Texture.Sampler.SAMPLER_3D)
+            .sampler(Texture.Sampler.SAMPLER_2D)  // Use SAMPLER_2D for a 2D texture
             .format(Texture.InternalFormat.RGBA8)
-            .build(sceneView.engine)
 
-        Log.d("error 2", "========================================================")
+        val texture = textureBuilder.build(sceneView.engine)
 
         val pixelBufferDescriptor = Texture.PixelBufferDescriptor(
             buffer,
@@ -402,11 +403,12 @@ class MainActivity : AppCompatActivity(R.layout.activity_main) {
             Texture.Type.UBYTE
         )
 
-        Log.d("error 3", "========================================================")
-
-        texture.setImage(sceneView.engine, 0, pixelBufferDescriptor)
-
-        Log.d("error 4", "========================================================")
+        try {
+            texture.setImage(sceneView.engine, 0, pixelBufferDescriptor)
+        } catch (e: Exception) {
+            e.printStackTrace()
+            // Handle the error appropriately
+        }
 
         return texture
     }
