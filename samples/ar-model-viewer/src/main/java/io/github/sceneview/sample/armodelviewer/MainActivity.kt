@@ -1,9 +1,11 @@
 package io.github.sceneview.sample.armodelviewer
 
 import android.app.Dialog
-import android.content.Context
+import android.content.Intent
+import android.content.pm.PackageManager
 import android.graphics.BitmapFactory
 import android.graphics.Color
+import android.net.Uri
 import android.os.Bundle
 import android.util.Log
 import android.view.View
@@ -51,12 +53,14 @@ class MainActivity : AppCompatActivity(R.layout.activity_main) {
     lateinit var resetButton: Button
     lateinit var colorSpinner: Spinner
     lateinit var selectColorButton: Button
+    lateinit var selectImageButton: Button
     var currentIndex: Int = -1
     private lateinit var adapter: ArrayAdapter<String>
     val colorMap: MutableList<MaterialInstance> = mutableListOf()
     var glbMaterial = mutableListOf<String>("Select Material")
     var isReset = true
     var defaultMaterialInstances: List<MaterialInstance>? = null
+
     var isLoading = false
         set(value) {
             field = value
@@ -138,6 +142,12 @@ class MainActivity : AppCompatActivity(R.layout.activity_main) {
         resetButton = findViewById(R.id.button4)
         colorSpinner = findViewById(R.id.colorSpinner)
         selectColorButton = findViewById(R.id.b1)
+        selectImageButton = findViewById(R.id.pickImage)
+
+
+        selectImageButton.setOnClickListener {
+            checkStoragePermission()
+        }
 
         val rgbDialog = Dialog(this).apply {
             setContentView(rgbLayoutDialogBinding.root)
@@ -175,13 +185,13 @@ class MainActivity : AppCompatActivity(R.layout.activity_main) {
             val blue = rgbLayoutDialogBinding.blueLayout.seekBar.progress / 255.0f
 
             if (currentIndex in colorMap.indices) {
-                val whiteTexture = createTextureFromResource(this, R.drawable.texture_image)
+//                val whiteTexture = createTextureFromUri(this, R.drawable.texture_image)
                 colorMap[currentIndex] = colorMap[currentIndex].apply {
                     // Set the base color factor to the desired color
                     setParameter("baseColorFactor", red, green, blue, 1.0f)
                     // Set the base color map to the white texture
-                    setBaseColorMap(whiteTexture)
-                    // Set the metallic roughness map to the white texture
+//                    setBaseColorMap(whiteTexture)
+//                     Set the metallic roughness map to the white texture
 //                    setMetallicRoughnessMap(whiteTexture)
                     // Set metallic and roughness factors to avoid additional color mixing
 //                    setParameter("metallicFactor", 0.0f)
@@ -301,6 +311,45 @@ class MainActivity : AppCompatActivity(R.layout.activity_main) {
         }
     }
 
+    private val STORAGE_PERMISSION_CODE = 1001
+
+    private fun checkStoragePermission() {
+
+        openGallery()
+
+    }
+
+    override fun onRequestPermissionsResult(
+        requestCode: Int,
+        permissions: Array<String>,
+        grantResults: IntArray
+    ) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
+        if (requestCode == STORAGE_PERMISSION_CODE && grantResults.isNotEmpty() && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
+            openGallery()
+        } else {
+            Toast.makeText(this, "Permission denied", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    private val GALLERY_REQUEST_CODE = 1002
+
+    private fun openGallery() {
+        val intent = Intent(Intent.ACTION_PICK)
+        intent.type = "image/*"
+        startActivityForResult(intent, GALLERY_REQUEST_CODE)
+    }
+
+    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
+        super.onActivityResult(requestCode, resultCode, data)
+        if (requestCode == GALLERY_REQUEST_CODE && resultCode == RESULT_OK) {
+            data?.data?.let { uri ->
+                createTextureFromUri(uri)
+            }
+        }
+    }
+
+
     fun addAnchorNode(anchor: Anchor) {
         Log.d("abcd test", "addAnchorNode: adding anchor node with anchor=$anchor")
         sceneView.addChildNode(
@@ -390,8 +439,11 @@ class MainActivity : AppCompatActivity(R.layout.activity_main) {
         }
     }
 
-    private fun createTextureFromResource(context: Context, resourceId: Int): Texture {
-        val bitmap = BitmapFactory.decodeResource(context.resources, resourceId)
+    private fun createTextureFromUri(uri: Uri) {
+        val inputStream = contentResolver.openInputStream(uri)
+        val bitmap = BitmapFactory.decodeStream(inputStream)
+        inputStream?.close()
+
         val width = bitmap.width
         val height = bitmap.height
         val buffer = ByteBuffer.allocateDirect(width * height * 4).order(ByteOrder.nativeOrder())
@@ -414,11 +466,20 @@ class MainActivity : AppCompatActivity(R.layout.activity_main) {
 
         try {
             texture.setImage(sceneView.engine, 0, pixelBufferDescriptor)
+            applyTextureToMaterial(texture)
         } catch (e: Exception) {
             e.printStackTrace()
-            // Handle the error appropriately
+            Toast.makeText(this, "Failed to create texture", Toast.LENGTH_SHORT).show()
         }
-
-        return texture
     }
+
+    private fun applyTextureToMaterial(texture: Texture) {
+        if (currentIndex in colorMap.indices) {
+            colorMap[currentIndex].setBaseColorMap(texture)
+//            reloadModel(anchorNode!!)
+        } else {
+            Log.e("LogDB", "Invalid currentIndex: $currentIndex")
+        }
+    }
+
 }
