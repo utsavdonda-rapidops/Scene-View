@@ -43,7 +43,9 @@ import io.github.sceneview.node.ModelNode
 import io.github.sceneview.sample.armodelviewer.databinding.RgbLayoutDialogBinding
 import io.github.sceneview.sample.doOnApplyWindowInsets
 import io.github.sceneview.sample.setFullScreen
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import java.nio.Buffer
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
@@ -182,7 +184,9 @@ class MainActivity : AppCompatActivity(R.layout.activity_main) {
                 colorMap[currentIndex] = colorMap[currentIndex].apply {
 // Set the base color factor to the desired color
                     setParameter("baseColorFactor", red, green, blue, 1.0f)
-                    setBaseColorMap(whiteTexture)
+                    if (whiteTexture != null) {
+                        setBaseColorMap(whiteTexture)
+                    }
 // setMetallicRoughnessMap(whiteTexture)
 // setParameter("metallicFactor", 0.0f)
 
@@ -360,6 +364,110 @@ class MainActivity : AppCompatActivity(R.layout.activity_main) {
         return null
     }
 
+
+    private fun createTextureFromUriAndColor(): Texture? {
+        val buffer: Buffer
+        val texture: Texture
+
+        return try {
+            if (imgUri != null) {
+                val inputStream = contentResolver.openInputStream(imgUri!!)
+                val bitmap = BitmapFactory.decodeStream(inputStream)
+                inputStream?.close()
+
+                val width = bitmap.width
+                val height = bitmap.height
+                buffer =
+                    ByteBuffer.allocateDirect(width * height * 4).order(ByteOrder.nativeOrder())
+                bitmap.copyPixelsToBuffer(buffer)
+                buffer.flip()
+
+                texture = Texture.Builder()
+                    .width(width)
+                    .height(height)
+                    .levels(1)
+                    .sampler(Texture.Sampler.SAMPLER_2D)
+                    .format(Texture.InternalFormat.RGBA8)
+                    .build(sceneView.engine)
+
+                val pixelBufferDescriptor = Texture.PixelBufferDescriptor(
+                    buffer,
+                    Texture.Format.RGBA,
+                    Texture.Type.UBYTE
+                )
+                texture.setImage(sceneView.engine, 0, pixelBufferDescriptor)
+
+                texture
+            } else {
+                // Handle case where imgUri is null (if needed)
+                buffer = ByteBuffer.allocateDirect(4).order(ByteOrder.nativeOrder())
+                buffer.put(0, 255.toByte()) // Red
+                buffer.put(1, 255.toByte()) // Green
+                buffer.put(2, 255.toByte()) // Blue
+                buffer.put(3, 255.toByte()) // Alpha
+
+                texture = Texture.Builder()
+                    .width(1)
+                    .height(1)
+                    .levels(1)
+                    .sampler(Texture.Sampler.SAMPLER_2D)
+                    .format(Texture.InternalFormat.RGBA8)
+                    .build(sceneView.engine)
+
+                val pixelBufferDescriptor = Texture.PixelBufferDescriptor(
+                    buffer,
+                    Texture.Format.RGBA,
+                    Texture.Type.UBYTE
+                )
+                texture.setImage(sceneView.engine, 0, pixelBufferDescriptor)
+                texture
+            }
+        } catch (e: Exception) {
+            e.printStackTrace()
+            Toast.makeText(this, "Failed to create texture", Toast.LENGTH_SHORT).show()
+            null
+        }
+    }
+
+    private val changeImage =
+        registerForActivityResult(ActivityResultContracts.StartActivityForResult()) {
+            if (it.resultCode == Activity.RESULT_OK) {
+                val data = it.data
+                imgUri = data?.data
+                if (imgUri != null) {
+                    isLoading = true // Start loading indicator
+
+                    // Perform the image processing asynchronously
+                    lifecycleScope.launch {
+                        val texture = withContext(Dispatchers.Default) {
+                            createTextureFromUriAndColor()
+                        }
+
+                        // Apply the texture to the material on the main thread
+                        withContext(Dispatchers.Main) {
+                            if (texture != null) {
+                                applyTextureToMaterial(texture)
+                            }
+                            isLoading = false // End loading indicator after applying the texture
+                        }
+                    }
+                }
+            }
+        }
+
+    private fun applyTextureToMaterial(texture: Texture) {
+        if (currentIndex in colorMap.indices) {
+            colorMap[currentIndex].setBaseColorMap(texture)
+
+            // Reload the AR object to ensure the new texture is applied
+            anchorNode?.let { node ->
+                reloadModel(node)
+            }
+        } else {
+            Log.e("LogDB", "Invalid currentIndex: $currentIndex")
+        }
+    }
+
     fun reloadModel(node: AnchorNode) {
         lifecycleScope.launch {
             isLoading = true
@@ -382,75 +490,5 @@ class MainActivity : AppCompatActivity(R.layout.activity_main) {
         }
     }
 
-    private fun createTextureFromUriAndColor(): Texture {
-        val buffer: Buffer
-        val texture: Texture
-        isLoading = true
-        if (imgUri != null) {
-            val inputStream = contentResolver.openInputStream(imgUri!!)
-            val bitmap = BitmapFactory.decodeStream(inputStream)
-            inputStream?.close()
-            val width = bitmap.width
-            val height = bitmap.height
-            buffer = ByteBuffer.allocateDirect(width * height * 4).order(ByteOrder.nativeOrder())
-            bitmap.copyPixelsToBuffer(buffer)
-            buffer.flip()
-            texture = Texture.Builder()
-                .width(width)
-                .height(height)
-                .levels(1)
-                .sampler(Texture.Sampler.SAMPLER_2D)
-                .format(Texture.InternalFormat.RGBA8)
-                .build(sceneView.engine)
-        } else {
-            buffer = ByteBuffer.allocateDirect(4).order(ByteOrder.nativeOrder())
-            buffer.put(0, 255.toByte()) // Red
-            buffer.put(1, 255.toByte()) // Green
-            buffer.put(2, 255.toByte()) // Blue
-            buffer.put(3, 255.toByte()) // Alpha
-            texture = Texture.Builder()
-                .width(1)
-                .height(1)
-                .levels(1)
-                .sampler(Texture.Sampler.SAMPLER_2D)
-                .format(Texture.InternalFormat.RGBA8)
-                .build(sceneView.engine)
-        }
-        val pixelBufferDescriptor = Texture.PixelBufferDescriptor(
-            buffer,
-            Texture.Format.RGBA,
-            Texture.Type.UBYTE
-        )
-        try {
-            texture.setImage(sceneView.engine, 0, pixelBufferDescriptor)
-            if (imgUri != null) {
-                applyTextureToMaterial(texture)
-            }
-        } catch (e: Exception) {
-            e.printStackTrace()
-            Toast.makeText(this, "Failed to create texture", Toast.LENGTH_SHORT).show()
-        }
-        isLoading = false
-
-        return texture
-    }
-
-    private val changeImage =
-        registerForActivityResult(ActivityResultContracts.StartActivityForResult()) {
-            if (it.resultCode == Activity.RESULT_OK) {
-                val data = it.data
-                imgUri = data?.data
-                createTextureFromUriAndColor()
-            }
-        }
-
-    private fun applyTextureToMaterial(texture: Texture) {
-        if (currentIndex in colorMap.indices) {
-            colorMap[currentIndex].setBaseColorMap(texture)
-// reloadModel(anchorNode!!)
-        } else {
-            Log.e("LogDB", "Invalid currentIndex: $currentIndex")
-        }
-    }
 
 }
