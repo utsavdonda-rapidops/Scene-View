@@ -1,6 +1,8 @@
 package io.github.sceneview.sample.armodelviewer
 
 import android.app.Dialog
+import android.content.Context
+import android.graphics.BitmapFactory
 import android.graphics.Color
 import android.os.Bundle
 import android.util.Log
@@ -32,7 +34,6 @@ import io.github.sceneview.ar.arcore.getUpdatedPlanes
 import io.github.sceneview.ar.getDescription
 import io.github.sceneview.ar.node.AnchorNode
 import io.github.sceneview.material.setBaseColorMap
-import io.github.sceneview.material.setMetallicRoughnessMap
 import io.github.sceneview.math.Position
 import io.github.sceneview.node.ModelNode
 import io.github.sceneview.sample.armodelviewer.databinding.RgbLayoutDialogBinding
@@ -41,6 +42,7 @@ import io.github.sceneview.sample.setFullScreen
 import kotlinx.coroutines.launch
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
+
 
 class MainActivity : AppCompatActivity(R.layout.activity_main) {
     lateinit var sceneView: ARSceneView
@@ -173,17 +175,17 @@ class MainActivity : AppCompatActivity(R.layout.activity_main) {
             val blue = rgbLayoutDialogBinding.blueLayout.seekBar.progress / 255.0f
 
             if (currentIndex in colorMap.indices) {
-                val whiteTexture = createWhiteTexture()
+                val whiteTexture = createTextureFromResource(this, R.drawable.texture_image)
                 colorMap[currentIndex] = colorMap[currentIndex].apply {
                     // Set the base color factor to the desired color
                     setParameter("baseColorFactor", red, green, blue, 1.0f)
                     // Set the base color map to the white texture
                     setBaseColorMap(whiteTexture)
                     // Set the metallic roughness map to the white texture
-                    setMetallicRoughnessMap(whiteTexture)
+//                    setMetallicRoughnessMap(whiteTexture)
                     // Set metallic and roughness factors to avoid additional color mixing
-                    setParameter("metallicFactor", 0.0f)
-                    setParameter("roughnessFactor", 0.0f)
+//                    setParameter("metallicFactor", 0.0f)
+//                    setParameter("roughnessFactor", 0.0f)
                 }
                 isReset = false
             } else {
@@ -227,6 +229,8 @@ class MainActivity : AppCompatActivity(R.layout.activity_main) {
         }
 
         resetButton.setOnClickListener {
+
+
             glbMaterial.clear()
             colorMap.clear()
 // anchorNode?.position = Position(x = 0.0f, y = 0.0f, z = 0.0f)
@@ -386,21 +390,19 @@ class MainActivity : AppCompatActivity(R.layout.activity_main) {
         }
     }
 
-    private fun createWhiteTexture(): Texture {
-        val width = 1
-        val height = 1
-        val buffer = ByteBuffer.allocateDirect(4).order(ByteOrder.nativeOrder())
-        buffer.put(0, 0xFF.toByte())  // Red
-        buffer.put(1, 0xFF.toByte())  // Green
-        buffer.put(2, 0xFF.toByte())  // Blue
-        buffer.put(3, 0xFF.toByte())  // Alpha
-        buffer.flip()  // Ensure the buffer is ready to be read
+    private fun createTextureFromResource(context: Context, resourceId: Int): Texture {
+        val bitmap = BitmapFactory.decodeResource(context.resources, resourceId)
+        val width = bitmap.width
+        val height = bitmap.height
+        val buffer = ByteBuffer.allocateDirect(width * height * 4).order(ByteOrder.nativeOrder())
+        bitmap.copyPixelsToBuffer(buffer)
+        buffer.flip()
 
         val texture = Texture.Builder()
             .width(width)
             .height(height)
             .levels(1)
-            .sampler(Texture.Sampler.SAMPLER_2D)  // Use SAMPLER_2D for a 2D texture
+            .sampler(Texture.Sampler.SAMPLER_2D)
             .format(Texture.InternalFormat.RGBA8)
             .build(sceneView.engine)
 
@@ -419,5 +421,4 @@ class MainActivity : AppCompatActivity(R.layout.activity_main) {
 
         return texture
     }
-
 }
