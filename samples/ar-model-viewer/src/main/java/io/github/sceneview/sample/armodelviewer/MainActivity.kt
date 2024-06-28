@@ -1,12 +1,13 @@
 package io.github.sceneview.sample.armodelviewer
 
+import android.app.Activity
 import android.app.Dialog
 import android.content.Intent
-import android.content.pm.PackageManager
 import android.graphics.BitmapFactory
 import android.graphics.Color
 import android.net.Uri
 import android.os.Bundle
+import android.provider.MediaStore
 import android.util.Log
 import android.view.View
 import android.view.ViewGroup
@@ -18,6 +19,7 @@ import android.widget.SeekBar
 import android.widget.Spinner
 import android.widget.TextView
 import android.widget.Toast
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
 import androidx.appcompat.widget.Toolbar
 import androidx.constraintlayout.widget.ConstraintLayout
@@ -42,9 +44,9 @@ import io.github.sceneview.sample.armodelviewer.databinding.RgbLayoutDialogBindi
 import io.github.sceneview.sample.doOnApplyWindowInsets
 import io.github.sceneview.sample.setFullScreen
 import kotlinx.coroutines.launch
+import java.nio.Buffer
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
-
 
 class MainActivity : AppCompatActivity(R.layout.activity_main) {
     lateinit var sceneView: ARSceneView
@@ -53,14 +55,14 @@ class MainActivity : AppCompatActivity(R.layout.activity_main) {
     lateinit var resetButton: Button
     lateinit var colorSpinner: Spinner
     lateinit var selectColorButton: Button
-    lateinit var selectImageButton: Button
+    lateinit var btnPickImage: Button
+    var imgUri: Uri? = null
     var currentIndex: Int = -1
     private lateinit var adapter: ArrayAdapter<String>
     val colorMap: MutableList<MaterialInstance> = mutableListOf()
     var glbMaterial = mutableListOf<String>("Select Material")
     var isReset = true
     var defaultMaterialInstances: List<MaterialInstance>? = null
-
     var isLoading = false
         set(value) {
             field = value
@@ -116,7 +118,6 @@ class MainActivity : AppCompatActivity(R.layout.activity_main) {
 
             override fun onStartTrackingTouch(p0: SeekBar?) {}
             override fun onStopTrackingTouch(p0: SeekBar?) {}
-
         })
         colorTxt.text = seekBar.progress.toString()
     }
@@ -142,13 +143,7 @@ class MainActivity : AppCompatActivity(R.layout.activity_main) {
         resetButton = findViewById(R.id.button4)
         colorSpinner = findViewById(R.id.colorSpinner)
         selectColorButton = findViewById(R.id.b1)
-        selectImageButton = findViewById(R.id.pickImage)
-
-
-        selectImageButton.setOnClickListener {
-            checkStoragePermission()
-        }
-
+        btnPickImage = findViewById(R.id.pickImage)
         val rgbDialog = Dialog(this).apply {
             setContentView(rgbLayoutDialogBinding.root)
             window!!.setLayout(
@@ -157,7 +152,6 @@ class MainActivity : AppCompatActivity(R.layout.activity_main) {
             )
             setCancelable(false)
         }
-
         setOnSeekbar(
             "R",
             rgbLayoutDialogBinding.redLayout.typeTxt,
@@ -183,19 +177,16 @@ class MainActivity : AppCompatActivity(R.layout.activity_main) {
             val red = rgbLayoutDialogBinding.redLayout.seekBar.progress / 255.0f
             val green = rgbLayoutDialogBinding.greenLayout.seekBar.progress / 255.0f
             val blue = rgbLayoutDialogBinding.blueLayout.seekBar.progress / 255.0f
-
             if (currentIndex in colorMap.indices) {
-//                val whiteTexture = createTextureFromUri(this, R.drawable.texture_image)
+                val whiteTexture = createTextureFromUriAndColor()
                 colorMap[currentIndex] = colorMap[currentIndex].apply {
-                    // Set the base color factor to the desired color
+// Set the base color factor to the desired color
                     setParameter("baseColorFactor", red, green, blue, 1.0f)
-                    // Set the base color map to the white texture
-//                    setBaseColorMap(whiteTexture)
-//                     Set the metallic roughness map to the white texture
-//                    setMetallicRoughnessMap(whiteTexture)
-                    // Set metallic and roughness factors to avoid additional color mixing
-//                    setParameter("metallicFactor", 0.0f)
-//                    setParameter("roughnessFactor", 0.0f)
+                    setBaseColorMap(whiteTexture)
+// setMetallicRoughnessMap(whiteTexture)
+// setParameter("metallicFactor", 0.0f)
+
+// setParameter("roughnessFactor", 0.0f)
                 }
                 isReset = false
             } else {
@@ -204,17 +195,12 @@ class MainActivity : AppCompatActivity(R.layout.activity_main) {
             rgbDialog.dismiss()
         }
 
-
         selectColorButton.setOnClickListener {
             rgbDialog.show()
         }
-
         adapter = ArrayAdapter(this, android.R.layout.simple_spinner_item, glbMaterial)
-
         adapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item)
-
         colorSpinner.adapter = adapter
-
         colorSpinner.onItemSelectedListener = object : AdapterView.OnItemSelectedListener {
             override fun onItemSelected(
                 parent: AdapterView<*>,
@@ -225,28 +211,30 @@ class MainActivity : AppCompatActivity(R.layout.activity_main) {
                 val selectedMaterial = parent.getItemAtPosition(position).toString()
                 currentIndex = position
                 Log.d("select Value", " ${selectedMaterial} ${position}")
-//                if (selectedMaterial != "Select Material") {
-//                    val materialIndex = selectIndex.indexOf(selectedMaterial) - 1
-//                    if (materialIndex >= 0 && defaultMaterialInstances != null) {
-//                        val materialInstance = defaultMaterialInstances!![materialIndex]
-//                        materialInstance.setParameter("baseColorFactor", x, y, z, w)
-//                        reloadModel(anchorNode!!)
-//                    }
-//                }
+// if (selectedMaterial != "Select Material") {
+// val materialIndex = selectIndex.indexOf(selectedMaterial) - 1
+// if (materialIndex >= 0 && defaultMaterialInstances != null) {
+// val materialInstance = defaultMaterialInstances!![materialIndex]
+// materialInstance.setParameter("baseColorFactor", x, y, z, w)
+// reloadModel(anchorNode!!)
+// }
+// }
             }
 
             override fun onNothingSelected(parent: AdapterView<*>) {}
         }
-
+        btnPickImage.setOnClickListener {
+            val pickImg = Intent(Intent.ACTION_PICK, MediaStore.Images.Media.INTERNAL_CONTENT_URI)
+            changeImage.launch(pickImg)
+        }
         resetButton.setOnClickListener {
-
-
             glbMaterial.clear()
             colorMap.clear()
 // anchorNode?.position = Position(x = 0.0f, y = 0.0f, z = 0.0f)
             resetButton.visibility = View.INVISIBLE
             selectColorButton.visibility = View.INVISIBLE
             colorSpinner.visibility = View.INVISIBLE
+            btnPickImage.visibility = View.INVISIBLE
             isReset = true
             val arSession: Session? = sceneView.session
             val currentFrame = arSession?.update()
@@ -288,16 +276,18 @@ class MainActivity : AppCompatActivity(R.layout.activity_main) {
                 }
                 config.instantPlacementMode = Config.InstantPlacementMode.DISABLED
                 config.lightEstimationMode = Config.LightEstimationMode.ENVIRONMENTAL_HDR
+                config.planeFindingMode = Config.PlaneFindingMode.HORIZONTAL_AND_VERTICAL
             }
             onSessionUpdated = { _, frame ->
                 if (anchorNode == null) {
                     frame.getUpdatedPlanes()
-                        .firstOrNull { it.type == Plane.Type.HORIZONTAL_UPWARD_FACING }
+                        .firstOrNull { it.type == Plane.Type.HORIZONTAL_UPWARD_FACING || it.type == Plane.Type.HORIZONTAL_DOWNWARD_FACING || it.type == Plane.Type.VERTICAL }
                         ?.let { plane ->
                             addAnchorNode(plane.createAnchor(plane.centerPose))
                             resetButton.visibility = View.VISIBLE
                             selectColorButton.visibility = View.VISIBLE
                             colorSpinner.visibility = View.VISIBLE
+                            btnPickImage.visibility = View.VISIBLE
                         }
                 }
             }
@@ -311,45 +301,6 @@ class MainActivity : AppCompatActivity(R.layout.activity_main) {
         }
     }
 
-    private val STORAGE_PERMISSION_CODE = 1001
-
-    private fun checkStoragePermission() {
-
-        openGallery()
-
-    }
-
-    override fun onRequestPermissionsResult(
-        requestCode: Int,
-        permissions: Array<String>,
-        grantResults: IntArray
-    ) {
-        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
-        if (requestCode == STORAGE_PERMISSION_CODE && grantResults.isNotEmpty() && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
-            openGallery()
-        } else {
-            Toast.makeText(this, "Permission denied", Toast.LENGTH_SHORT).show()
-        }
-    }
-
-    private val GALLERY_REQUEST_CODE = 1002
-
-    private fun openGallery() {
-        val intent = Intent(Intent.ACTION_PICK)
-        intent.type = "image/*"
-        startActivityForResult(intent, GALLERY_REQUEST_CODE)
-    }
-
-    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
-        super.onActivityResult(requestCode, resultCode, data)
-        if (requestCode == GALLERY_REQUEST_CODE && resultCode == RESULT_OK) {
-            data?.data?.let { uri ->
-                createTextureFromUri(uri)
-            }
-        }
-    }
-
-
     fun addAnchorNode(anchor: Anchor) {
         Log.d("abcd test", "addAnchorNode: adding anchor node with anchor=$anchor")
         sceneView.addChildNode(
@@ -359,17 +310,15 @@ class MainActivity : AppCompatActivity(R.layout.activity_main) {
                 lifecycleScope.launch {
                     isLoading = true
                     Log.d("xyz", "...........${sceneView.view.blendMode}")
-
                     Log.d("abcd test", "addAnchorNode: started loading model")
                     buildModelNode()?.let { modelNode ->
-                        // Create a white texture
-
                         Log.d("abcd test", "addAnchorNode: model node built successfully")
                         addChildNode(modelNode)
                     }
                     resetButton.visibility = View.VISIBLE
                     selectColorButton.visibility = View.VISIBLE
                     colorSpinner.visibility = View.VISIBLE
+                    btnPickImage.visibility = View.VISIBLE
                     isLoading = false
                     Log.d("abcd test", "addAnchorNode: finished loading model")
                 }
@@ -384,19 +333,13 @@ class MainActivity : AppCompatActivity(R.layout.activity_main) {
         return sceneView.modelLoader.loadModelInstance(
             "https://firebasestorage.googleapis.com/v0/b/flutterpractice-be455.appspot.com/o/satyam%2Fsample_curtain.glb?alt=media&token=ae90d584-87c1-4bd8-bd4b-be24f552c362"
         )?.let { modelInstance ->
-
             modelInstance.materialInstances.forEachIndexed { index, materialInstance ->
                 glbMaterial.add(materialInstance.name)
-                Log.d("error 5", "========================================================")
-//                materialInstance.setMetallicRoughnessIndex(0)
-//                materialInstance.setClearCoatFactor(0.0f)
-
                 if (index < colorMap.size) {
                     colorMap[index] = materialInstance
                 } else {
                     colorMap.add(materialInstance)
                 }
-
             }
             adapter.notifyDataSetChanged()
             Log.d(
@@ -439,44 +382,72 @@ class MainActivity : AppCompatActivity(R.layout.activity_main) {
         }
     }
 
-    private fun createTextureFromUri(uri: Uri) {
-        val inputStream = contentResolver.openInputStream(uri)
-        val bitmap = BitmapFactory.decodeStream(inputStream)
-        inputStream?.close()
-
-        val width = bitmap.width
-        val height = bitmap.height
-        val buffer = ByteBuffer.allocateDirect(width * height * 4).order(ByteOrder.nativeOrder())
-        bitmap.copyPixelsToBuffer(buffer)
-        buffer.flip()
-
-        val texture = Texture.Builder()
-            .width(width)
-            .height(height)
-            .levels(1)
-            .sampler(Texture.Sampler.SAMPLER_2D)
-            .format(Texture.InternalFormat.RGBA8)
-            .build(sceneView.engine)
-
+    private fun createTextureFromUriAndColor(): Texture {
+        val buffer: Buffer
+        val texture: Texture
+        isLoading = true
+        if (imgUri != null) {
+            val inputStream = contentResolver.openInputStream(imgUri!!)
+            val bitmap = BitmapFactory.decodeStream(inputStream)
+            inputStream?.close()
+            val width = bitmap.width
+            val height = bitmap.height
+            buffer = ByteBuffer.allocateDirect(width * height * 4).order(ByteOrder.nativeOrder())
+            bitmap.copyPixelsToBuffer(buffer)
+            buffer.flip()
+            texture = Texture.Builder()
+                .width(width)
+                .height(height)
+                .levels(1)
+                .sampler(Texture.Sampler.SAMPLER_2D)
+                .format(Texture.InternalFormat.RGBA8)
+                .build(sceneView.engine)
+        } else {
+            buffer = ByteBuffer.allocateDirect(4).order(ByteOrder.nativeOrder())
+            buffer.put(0, 255.toByte()) // Red
+            buffer.put(1, 255.toByte()) // Green
+            buffer.put(2, 255.toByte()) // Blue
+            buffer.put(3, 255.toByte()) // Alpha
+            texture = Texture.Builder()
+                .width(1)
+                .height(1)
+                .levels(1)
+                .sampler(Texture.Sampler.SAMPLER_2D)
+                .format(Texture.InternalFormat.RGBA8)
+                .build(sceneView.engine)
+        }
         val pixelBufferDescriptor = Texture.PixelBufferDescriptor(
             buffer,
             Texture.Format.RGBA,
             Texture.Type.UBYTE
         )
-
         try {
             texture.setImage(sceneView.engine, 0, pixelBufferDescriptor)
-            applyTextureToMaterial(texture)
+            if (imgUri != null) {
+                applyTextureToMaterial(texture)
+            }
         } catch (e: Exception) {
             e.printStackTrace()
             Toast.makeText(this, "Failed to create texture", Toast.LENGTH_SHORT).show()
         }
+        isLoading = false
+
+        return texture
     }
+
+    private val changeImage =
+        registerForActivityResult(ActivityResultContracts.StartActivityForResult()) {
+            if (it.resultCode == Activity.RESULT_OK) {
+                val data = it.data
+                imgUri = data?.data
+                createTextureFromUriAndColor()
+            }
+        }
 
     private fun applyTextureToMaterial(texture: Texture) {
         if (currentIndex in colorMap.indices) {
             colorMap[currentIndex].setBaseColorMap(texture)
-//            reloadModel(anchorNode!!)
+// reloadModel(anchorNode!!)
         } else {
             Log.e("LogDB", "Invalid currentIndex: $currentIndex")
         }
