@@ -103,7 +103,7 @@ class MainActivity : ComponentActivity() {
 
                             if (childNodes.isEmpty()) {
                                 updatedFrame.getUpdatedPlanes()
-                                    .firstOrNull { it.type == Plane.Type.HORIZONTAL_UPWARD_FACING }
+                                    .firstOrNull { it.type == Plane.Type.HORIZONTAL_UPWARD_FACING || it.type == Plane.Type.HORIZONTAL_DOWNWARD_FACING || it.type == Plane.Type.VERTICAL }
                                     ?.let { it.createAnchorOrNull(it.centerPose) }?.let { anchor ->
                                         childNodes += createAnchorNode(
                                             engine = engine,

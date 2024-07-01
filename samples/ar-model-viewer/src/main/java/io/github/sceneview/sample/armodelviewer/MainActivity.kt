@@ -63,6 +63,8 @@ class MainActivity : AppCompatActivity(R.layout.activity_main) {
     private val colorMap: MutableList<MaterialInstance> = mutableListOf()
     private var glbMaterial = mutableListOf("Select Material")
     private var isReset = true
+    private var glbUrl =
+        "https://firebasestorage.googleapis.com/v0/b/fir-practice-7ec8c.appspot.com/o/Scene.glb?alt=media&token=c4f3f0b0-d457-4a25-9eef-e5a8938d6619"
     private var isLoading = false
         set(value) {
             field = value
@@ -284,7 +286,7 @@ class MainActivity : AppCompatActivity(R.layout.activity_main) {
     private suspend fun buildModelNode(): ModelNode? {
         glbMaterial.clear()
         return sceneView.modelLoader.loadModelInstance(
-            "https://firebasestorage.googleapis.com/v0/b/fir-practice-7ec8c.appspot.com/o/TwoSidedPlane.glb?alt=media&token=7f190855-37fa-472b-9130-1882803f02bc"
+            glbUrl
         )?.let { modelInstance ->
             modelInstance.materialInstances.forEachIndexed { index, materialInstance ->
                 glbMaterial.add(materialInstance.name)
