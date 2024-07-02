@@ -169,7 +169,7 @@ class PlaneRenderer(
                             // Don't make the hit test if we don't need to know the center plane
                             frame.hitTest(viewSize.width / 2.0f, viewSize.height / 2.0f)
                                 .firstByTypeOrNull(
-                                    planeTypes = setOf(Plane.Type.HORIZONTAL_UPWARD_FACING,Plane.Type.HORIZONTAL_DOWNWARD_FACING,Plane.Type.VERTICAL)
+                                    planeTypes = setOf(Plane.Type.HORIZONTAL_UPWARD_FACING)
                                 )?.trackable as? Plane
                         } else null
 //                        if (centerPlane != null) {
