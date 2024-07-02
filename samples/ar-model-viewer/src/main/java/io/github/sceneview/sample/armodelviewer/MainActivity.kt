@@ -246,7 +246,7 @@ class MainActivity : AppCompatActivity(R.layout.activity_main) {
             onSessionUpdated = { _, frame ->
                 if (anchorNode == null) {
                     frame.getUpdatedPlanes()
-                        .firstOrNull { it.type == Plane.Type.HORIZONTAL_UPWARD_FACING || it.type == Plane.Type.HORIZONTAL_DOWNWARD_FACING || it.type == Plane.Type.VERTICAL }
+                        .firstOrNull { it.type == Plane.Type.HORIZONTAL_UPWARD_FACING || it.type == Plane.Type.VERTICAL }
                         ?.let { plane ->
                             addAnchorNode(plane.createAnchor(plane.centerPose))
                             resetButton.visibility = View.VISIBLE
@@ -284,7 +284,7 @@ class MainActivity : AppCompatActivity(R.layout.activity_main) {
     private suspend fun buildModelNode(): ModelNode? {
         glbMaterial.clear()
         return sceneView.modelLoader.loadModelInstance(
-            "https://firebasestorage.googleapis.com/v0/b/fir-practice-7ec8c.appspot.com/o/TwoSidedPlane.glb?alt=media&token=7f190855-37fa-472b-9130-1882803f02bc"
+            "https://firebasestorage.googleapis.com/v0/b/fir-practice-7ec8c.appspot.com/o/Scene%20(3).glb?alt=media&token=81c068ea-f002-4d08-8157-f90a5e5845b4"
         )?.let { modelInstance ->
             modelInstance.materialInstances.forEachIndexed { index, materialInstance ->
                 glbMaterial.add(materialInstance.name)
