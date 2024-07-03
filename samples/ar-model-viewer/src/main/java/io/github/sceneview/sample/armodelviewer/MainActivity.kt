@@ -36,6 +36,7 @@ import io.github.sceneview.ar.ARSceneView
 import io.github.sceneview.ar.arcore.getUpdatedPlanes
 import io.github.sceneview.ar.getDescription
 import io.github.sceneview.ar.node.AnchorNode
+import io.github.sceneview.ar.scene.PlaneRenderer
 import io.github.sceneview.material.setBaseColorMap
 import io.github.sceneview.math.Position
 import io.github.sceneview.node.ModelNode
@@ -234,6 +235,7 @@ class MainActivity : AppCompatActivity(R.layout.activity_main) {
         sceneView = findViewById<ARSceneView?>(R.id.sceneView).apply {
             lifecycle = this@MainActivity.lifecycle
             planeRenderer.isEnabled = true
+            planeRenderer.planeRendererMode = PlaneRenderer.PlaneRendererMode.RENDER_ALL
             configureSession { session, config ->
                 config.depthMode = when (session.isDepthModeSupported(Config.DepthMode.AUTOMATIC)) {
                     true -> Config.DepthMode.AUTOMATIC
@@ -393,7 +395,7 @@ class MainActivity : AppCompatActivity(R.layout.activity_main) {
 
             // Reload the AR object to ensure the new texture is applied
             anchorNode?.let { node ->
-                reloadModel(node)
+//                reloadModel(node)
             }
         } else {
             Log.e("LogDB", "Invalid currentIndex: $currentIndex")
